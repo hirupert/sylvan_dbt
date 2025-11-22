@@ -1,0 +1,16 @@
+name: sanity-check
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Say hi
+        run: echo "GitHub Actions is wired up for sylvan_dbt."
