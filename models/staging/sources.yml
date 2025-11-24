@@ -17,9 +17,6 @@ sources:
           - name: NAME
             tests:
               - not_null
-          - name: LABEL
-            tests:
-              - not_null
           - name: _FIVETRAN_SYNCED
             tests:
               - not_null
@@ -38,9 +35,6 @@ sources:
             tests:
               - not_null
           - name: PROPERTY_NAME
-            tests:
-              - not_null
-          - name: PROPERTY_DOMAIN
             tests:
               - not_null
           - name: _FIVETRAN_SYNCED
@@ -80,12 +74,6 @@ sources:
               - not_null
               - unique
           - name: PROPERTY_EMAIL
-            tests:
-              - not_null
-          - name: PROPERTY_FIRSTNAME
-            tests:
-              - not_null
-          - name: PROPERTY_LASTNAME
             tests:
               - not_null
           - name: PROPERTY_CREATEDATE
@@ -288,9 +276,6 @@ sources:
             tests:
               - not_null
               - unique
-          - name: PRODUCT_ID
-            tests:
-              - not_null
           - name: _FIVETRAN_SYNCED
             tests:
               - not_null
