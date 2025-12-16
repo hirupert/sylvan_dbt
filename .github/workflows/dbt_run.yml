@@ -1,13 +1,26 @@
-name: Run dbt models
+name: dbt run – fct_deal_subscription
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
   schedule:
-    - cron: "0 8 * * *"   # daily at 8am UTC (adjust if needed)
+    # every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
 
 jobs:
-  run-dbt:
+  dbt-run:
     runs-on: ubuntu-latest
+
+    env:
+      DBT_PROFILES_DIR: ./profiles
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_DATABASE: SYLVAN_INTERNAL_DATABASE
+      SNOWFLAKE_WAREHOUSE: SYLVAN_INTERNAL
+      SNOWFLAKE_SCHEMA: SUBSCRIPTION_MGMT_DBT
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
 
     steps:
       - name: Checkout repo
@@ -18,34 +31,39 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install dbt
+      - name: Install dbt Snowflake
         run: |
-          pip install dbt-core dbt-snowflake
+          pip install --upgrade pip
+          pip install dbt-snowflake==1.10.3
 
-      # ✅ THIS IS THE MISSING STEP
-      - name: Create dbt profiles directory
-        run: mkdir -p ~/.dbt
-
-      - name: Create profiles.yml
+      - name: Write Snowflake private key to file
         run: |
-          cat << EOF > ~/.dbt/profiles.yml
+          mkdir -p ~/.ssh
+          echo "$SNOWFLAKE_PRIVATE_KEY" > ~/.ssh/snowflake_private_key.p8
+          chmod 600 ~/.ssh/snowflake_private_key.p8
+
+      - name: Create dbt profiles.yml
+        run: |
+          mkdir -p profiles
+          cat <<EOF > profiles/profiles.yml
           sylvan_dbt:
             target: prod
             outputs:
               prod:
                 type: snowflake
-                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-                user: ${{ secrets.SNOWFLAKE_USER }}
-                role: ${{ secrets.SNOWFLAKE_ROLE }}
-                database: ${{ secrets.SNOWFLAKE_DATABASE }}
-                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
-                schema: ${{ secrets.SNOWFLAKE_SCHEMA }}
-                private_key: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+                account: ${SNOWFLAKE_ACCOUNT}
+                user: ${SNOWFLAKE_USER}
+                role: ${SNOWFLAKE_ROLE}
+                database: ${SNOWFLAKE_DATABASE}
+                warehouse: ${SNOWFLAKE_WAREHOUSE}
+                schema: ${SNOWFLAKE_SCHEMA}
                 threads: 4
+                private_key_path: ~/.ssh/snowflake_private_key.p8
           EOF
 
-      - name: Install dbt dependencies
+      - name: dbt deps
         run: dbt deps
 
-      - name: Run fct_deal_subscription
-        run: dbt run --select fct_deal_subscription
+      - name: dbt run – fct_deal_subscription
+        run: |
+          dbt run --select fct_deal_subscription
