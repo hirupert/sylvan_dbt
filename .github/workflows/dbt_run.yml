@@ -1,22 +1,13 @@
 name: Run dbt models
 
 on:
-  schedule:
-    - cron: "0 9 * * *"   # daily at 9am ET
   workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *"   # daily at 8am UTC (adjust if needed)
 
 jobs:
   run-dbt:
     runs-on: ubuntu-latest
-
-    env:
-      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
-      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
-      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
-      SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
-      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
 
     steps:
       - name: Checkout repo
@@ -25,12 +16,36 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
 
       - name: Install dbt
         run: |
-          pip install dbt-snowflake==1.10.3
+          pip install dbt-core dbt-snowflake
+
+      # ✅ THIS IS THE MISSING STEP
+      - name: Create dbt profiles directory
+        run: mkdir -p ~/.dbt
+
+      - name: Create profiles.yml
+        run: |
+          cat << EOF > ~/.dbt/profiles.yml
+          sylvan_dbt:
+            target: prod
+            outputs:
+              prod:
+                type: snowflake
+                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+                user: ${{ secrets.SNOWFLAKE_USER }}
+                role: ${{ secrets.SNOWFLAKE_ROLE }}
+                database: ${{ secrets.SNOWFLAKE_DATABASE }}
+                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+                schema: ${{ secrets.SNOWFLAKE_SCHEMA }}
+                private_key: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+                threads: 4
+          EOF
+
+      - name: Install dbt dependencies
+        run: dbt deps
 
       - name: Run fct_deal_subscription
-        run: |
-          dbt run --select fct_deal_subscription
+        run: dbt run --select fct_deal_subscription
