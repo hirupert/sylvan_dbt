@@ -8,8 +8,6 @@ with deal_base as (
         pipeline_id,
         stage_id,
         booking_date,
-        contract_start_date,
-        contract_end_date,
         contract_term_months,
         free_trial_duration,
         free_trial_placement,
