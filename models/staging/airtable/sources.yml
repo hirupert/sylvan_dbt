@@ -1,7 +1,7 @@
 version: 2
 
 sources:
-  - name: airtable_sylvan_invoices
+  - name: airtable_sylvan_customer_management
     database: SYLVAN_INTERNAL_DATABASE
     schema: AIRTABLE_SYLVAN_INVOICES_APPT2R0RWMCEQIPSR
     tables:

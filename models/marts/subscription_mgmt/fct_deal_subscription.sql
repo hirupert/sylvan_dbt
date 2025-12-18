@@ -28,8 +28,6 @@ with deal_base as (
 
 ),
 
-/* --------- DEDUPED DEAL ↔ COMPANY LINK --------- */
-
 deal_company_link as (
     select deal_id, company_id
     from (
@@ -74,22 +72,15 @@ stage_dim as (
     from {{ ref('stg_deal_pipeline_stage') }}
 ),
 
-/* ---------------- CONTACT AGG ---------------- */
-
 contact_agg as (
     select
         dc.deal_id,
-        listagg(distinct c.id::string, ', ') within group (order by c.id::string) as contact_ids,
-        listagg(distinct c.first_name, ', ') within group (order by c.first_name) as contact_first_names,
-        listagg(distinct c.last_name, ', ') within group (order by c.last_name) as contact_last_names,
-        listagg(distinct c.email, ', ') within group (order by c.email) as contact_emails
+        listagg(distinct c.id::string, ', ') within group (order by c.id::string) as contact_ids
     from {{ ref('stg_deal_contact') }} dc
     join {{ ref('stg_contact') }} c
         on dc.contact_id = c.id
     group by dc.deal_id
 ),
-
-/* ---------------- LINE ITEM AGG ---------------- */
 
 line_item_agg as (
     select
@@ -102,8 +93,6 @@ line_item_agg as (
         on ld.line_item_id = li.id
     group by ld.deal_id
 ),
-
-/* ---------------- ENRICH DEAL ---------------- */
 
 deal_enriched as (
     select
@@ -126,12 +115,9 @@ deal_enriched as (
     left join line_item_agg li on li.deal_id = d.deal_id
 ),
 
-/* ---------------- SUBSCRIPTION DATES ---------------- */
-
 deal_with_subscription as (
     select
         d.*,
-
         case
             when d.booking_date is null then null
             when coalesce(d.free_trial_duration,0) > 0
@@ -142,34 +128,27 @@ deal_with_subscription as (
 
         case
             when d.booking_date is null
-              or d.contract_term_months is null
-                then null
+              or d.contract_term_months is null then null
             when coalesce(d.free_trial_duration,0) > 0
              and upper(coalesce(d.free_trial_placement,'')) = 'END'
                 then dateadd(month, d.contract_term_months - d.free_trial_duration, d.booking_date)
             else dateadd(month, d.contract_term_months, d.booking_date)
         end as subscription_end_date
-
     from deal_enriched d
 ),
 
-/* ---------------- INVOICE COUNTS (NEW AIRTABLE SCHEMA) ---------------- */
-
 invoice_counts as (
     select
-        deal_id,
+        associated_hubspot_deal_id as deal_id,
         count(case when paid_timestamp is not null then 1 end) as invoices_raised_so_far,
         count(case when sent_timestamp is not null and paid_timestamp is null then 1 end) as invoices_due
-    from {{ source('airtable_sylvan_invoices', 'INVOICES') }}
-    group by deal_id
+    from {{ source('airtable_sylvan_customer_management', 'INVOICES') }}
+    group by associated_hubspot_deal_id
 ),
-
-/* ---------------- FINAL ---------------- */
 
 final as (
     select
         dws.*,
-
         case
             when upper(dws.billing_frequency) = 'ANNUAL' then 1
             when upper(dws.billing_frequency) = 'SEMI-ANNUAL' then 2
@@ -202,7 +181,7 @@ final as (
                      when upper(dws.billing_frequency) = 'MONTHLY'
                         then dws.contract_term_months - coalesce(dws.free_trial_duration,0)
                  end
-                then 'Complete'
+                then null
             when upper(dws.billing_frequency) = 'ANNUAL'
                 then dws.subscription_start_date
             when upper(dws.billing_frequency) = 'SEMI-ANNUAL'
@@ -210,7 +189,6 @@ final as (
             when upper(dws.billing_frequency) = 'MONTHLY'
                 then dateadd(month, coalesce(ic.invoices_raised_so_far,0), dws.subscription_start_date)
         end as next_invoice_to_raise
-
     from deal_with_subscription dws
     left join invoice_counts ic on dws.deal_id = ic.deal_id
 )
