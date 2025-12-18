@@ -126,13 +126,12 @@ deal_enriched as (
     left join line_item_agg li on li.deal_id = d.deal_id
 ),
 
-/* ---------------- SUBSCRIPTION DATES (FIXED) ---------------- */
+/* ---------------- SUBSCRIPTION DATES ---------------- */
 
 deal_with_subscription as (
     select
         d.*,
 
-        /* subscription start = when PAID billing starts */
         case
             when d.booking_date is null then null
             when coalesce(d.free_trial_duration,0) > 0
@@ -141,44 +140,36 @@ deal_with_subscription as (
             else d.booking_date
         end as subscription_start_date,
 
-        /* subscription end = when PAID billing stops */
         case
             when d.booking_date is null
               or d.contract_term_months is null
                 then null
-
             when coalesce(d.free_trial_duration,0) > 0
              and upper(coalesce(d.free_trial_placement,'')) = 'END'
-                then dateadd(
-                        month,
-                        d.contract_term_months - d.free_trial_duration,
-                        d.booking_date
-                     )
-
+                then dateadd(month, d.contract_term_months - d.free_trial_duration, d.booking_date)
             else dateadd(month, d.contract_term_months, d.booking_date)
         end as subscription_end_date
 
     from deal_enriched d
 ),
 
-/* ---------------- INVOICE COUNTS FROM AIRTABLE ---------------- */
+/* ---------------- INVOICE COUNTS (NEW AIRTABLE SCHEMA) ---------------- */
 
 invoice_counts as (
     select
         deal_id,
         count(case when paid_timestamp is not null then 1 end) as invoices_raised_so_far,
         count(case when sent_timestamp is not null and paid_timestamp is null then 1 end) as invoices_due
-    from {{ source('airtable_sylvan_customer_management', 'BASE_INVOICES') }}
+    from {{ source('airtable_sylvan_invoices', 'INVOICES') }}
     group by deal_id
 ),
 
-/* ---------------- FINAL CALCS ---------------- */
+/* ---------------- FINAL ---------------- */
 
 final as (
     select
         dws.*,
 
-        /* invoices to raise */
         case
             when upper(dws.billing_frequency) = 'ANNUAL' then 1
             when upper(dws.billing_frequency) = 'SEMI-ANNUAL' then 2
@@ -187,7 +178,6 @@ final as (
             else 0
         end as invoices_to_raise,
 
-        /* invoice amount = total contract value / invoices */
         case
             when upper(dws.billing_frequency) in ('ANNUAL','SEMI-ANNUAL','MONTHLY')
                 then dws.amount /
@@ -204,7 +194,6 @@ final as (
         coalesce(ic.invoices_raised_so_far,0) as invoices_raised_so_far,
         coalesce(ic.invoices_due,0) as invoices_due,
 
-        /* next invoice to raise */
         case
             when coalesce(ic.invoices_raised_so_far,0) >=
                  case

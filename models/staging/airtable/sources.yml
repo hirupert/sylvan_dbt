@@ -1,9 +1,8 @@
 version: 2
 
 sources:
-  - name: airtable_sylvan_customer_management
+  - name: airtable_sylvan_invoices
     database: SYLVAN_INTERNAL_DATABASE
-    schema: AIRTABLE_SYLVAN_CUSTOMER_MANAGEMENT_APPT2R0RWMCEQIPSR
+    schema: AIRTABLE_SYLVAN_INVOICES_APPT2R0RWMCEQIPSR
     tables:
-      - name: BASE_INVOICES
-      - name: SUBSCRIPTIONS
+      - name: INVOICES
